@@ -1,12 +1,45 @@
 // Renders a questionnaire definition (JSON) as an HTML form.
 import { el } from "./dom.js";
-import { isVisible, parseServerErrors, pruneHidden, validate } from "./form-logic.js";
+import { choiceOptions, isVisible, parseServerErrors, pruneHidden, validate } from "./form-logic.js";
 
-export function renderForm(definition, { onSubmit, submitLabel = "Save answers" }) {
+// onChange(answers), optional: called after every change with the answers as they would be sent.
+export function renderForm(definition, { onSubmit, onChange, submitLabel = "Save answers" }) {
   const state = {}; // the answers being typed
   const watchers = []; // fields that can show/hide depending on other answers
+  const dynamicChoices = []; // choice fields whose options come from other answers ("options_from")
+
+  // Rebuild the options of "options_from" choices, keeping the current answer selected.
+  const refreshChoices = () => {
+    for (let i = dynamicChoices.length - 1; i >= 0; i--) {
+      const { select, question, rowState, owners } = dynamicChoices[i];
+      if (!select.isConnected) {
+        dynamicChoices.splice(i, 1); // belongs to a removed row
+        continue;
+      }
+      fillChoice(select, question, rowState, owners);
+    }
+  };
+
+  // Dropdowns start on their first option (no empty "choose" entry).
+  const fillChoice = (select, question, rowState, owners) => {
+    const options = choiceOptions(question, state, owners);
+    if (rowState[question.id] === undefined && options.length) rowState[question.id] = options[0];
+    const current = rowState[question.id];
+    // A server that was renamed or removed stays visible (marked) so the user notices and fixes it.
+    const stale = current !== undefined && !options.includes(current) ? [current] : [];
+    select.replaceChildren(
+      ...options.map((o) => el("option", { value: o }, o)),
+      ...stale.map((o) => el("option", { value: o }, `${o} (no longer in the list)`)));
+    select.value = current ?? "";
+  };
+
+  const notify = () => {
+    if (onChange) onChange(pruneHidden(definition.questions, state));
+  };
 
   const refreshVisibility = () => {
+    notifyLater();
+    refreshChoices();
     for (let i = watchers.length - 1; i >= 0; i--) {
       const w = watchers[i];
       if (!w.node.isConnected) {
@@ -17,9 +50,11 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
     }
   };
 
-  const buildQuestions = (questions, rowState, path) => questions.map((q) => buildField(q, rowState, path));
+  // owners: the list rows we are inside, by list id (so a server's "Connected to" can leave itself out).
+  const buildQuestions = (questions, rowState, path, owners = {}) =>
+    questions.map((q) => buildField(q, rowState, path, owners));
 
-  function buildField(q, rowState, path) {
+  function buildField(q, rowState, path, owners) {
     const fieldPath = path + q.id;
     const id = "f_" + fieldPath.replace(/[^A-Za-z0-9]/g, "_");
     const isList = q.type === "list";
@@ -31,7 +66,7 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
         q.label,
         q.required ? el("span", { class: "req", title: "Required" }, " *") : null),
       q.help ? el("p", { class: "help" }, q.help) : null,
-      buildControl(q, rowState, fieldPath, id),
+      buildControl(q, rowState, fieldPath, id, owners),
       el("p", { class: "field-error", role: "alert", hidden: true }),
     );
     node.hidden = !isVisible(q, rowState);
@@ -39,7 +74,7 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
     return node;
   }
 
-  function buildControl(q, rowState, fieldPath, id) {
+  function buildControl(q, rowState, fieldPath, id, owners) {
     switch (q.type) {
       case "text": {
         const input = el("input", {
@@ -62,42 +97,40 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
         return input;
       }
       case "boolean": {
+        // Yes/no questions start on "No".
+        if (typeof rowState[q.id] !== "boolean") rowState[q.id] = false;
         const select = el("select", {
           id,
           onchange: (e) => {
-            if (e.target.value === "") delete rowState[q.id];
-            else rowState[q.id] = e.target.value === "yes";
+            rowState[q.id] = e.target.value === "yes";
             refreshVisibility();
           },
         },
-          el("option", { value: "" }, "— choose —"),
-          el("option", { value: "yes" }, "Yes"),
-          el("option", { value: "no" }, "No"));
-        select.value = rowState[q.id] === true ? "yes" : rowState[q.id] === false ? "no" : "";
+          el("option", { value: "no" }, "No"),
+          el("option", { value: "yes" }, "Yes"));
+        select.value = rowState[q.id] ? "yes" : "no";
         return select;
       }
       case "choice": {
         const select = el("select", {
           id,
           onchange: (e) => {
-            if (e.target.value === "") delete rowState[q.id];
-            else rowState[q.id] = e.target.value;
+            rowState[q.id] = e.target.value;
             refreshVisibility();
           },
-        },
-          el("option", { value: "" }, "— choose —"),
-          (q.options || []).map((o) => el("option", { value: o }, o)));
-        select.value = rowState[q.id] ?? "";
+        });
+        fillChoice(select, q, rowState, owners);
+        if (q.options_from) dynamicChoices.push({ select, question: q, rowState, owners });
         return select;
       }
       case "list":
-        return buildList(q, rowState, fieldPath);
+        return buildList(q, rowState, fieldPath, owners);
       default:
         return el("p", { class: "muted" }, `Unsupported question type: ${q.type}`);
     }
   }
 
-  function buildList(q, rowState, fieldPath) {
+  function buildList(q, rowState, fieldPath, owners) {
     if (!Array.isArray(rowState[q.id]) || rowState[q.id].length === 0) rowState[q.id] = [{}];
     const rowName = q.row_label || "Item";
     const box = el("div", { class: "rows" });
@@ -112,7 +145,7 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
                 type: "button", class: "btn ghost small",
                 onclick: () => { rowState[q.id].splice(i, 1); draw(); refreshVisibility(); },
               }, "Remove")),
-            ...buildQuestions(q.item, row, `${fieldPath}[${i}].`))),
+            ...buildQuestions(q.item, row, `${fieldPath}[${i}].`, { ...owners, [q.id]: row }))),
       );
     };
     draw();
@@ -121,11 +154,19 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
       box,
       el("button", {
         type: "button", class: "btn ghost small",
-        onclick: () => { rowState[q.id].push({}); draw(); },
+        onclick: () => { rowState[q.id].push({}); draw(); refreshVisibility(); },
       }, `+ Add ${rowName.toLowerCase()}`));
   }
 
   // ---- form shell: summary, submit, error display ----
+  // Many changes in a row (fast typing) are reported once, a moment later.
+  let pending = false;
+  function notifyLater() {
+    if (!onChange || pending) return;
+    pending = true;
+    setTimeout(() => { pending = false; notify(); }, 30);
+  }
+
   const summary = el("div", { class: "banner error", role: "alert", hidden: true });
   const submitButton = el("button", { type: "submit", class: "btn" }, submitLabel);
   const form = el("form", { novalidate: true }, summary, ...buildQuestions(definition.questions, state, ""),
@@ -177,5 +218,6 @@ export function renderForm(definition, { onSubmit, submitLabel = "Save answers" 
     }
   });
 
+  notifyLater(); // first picture, with the starting values
   return form;
 }

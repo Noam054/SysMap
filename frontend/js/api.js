@@ -39,4 +39,5 @@ export const api = {
   submissions: () => request("api/submissions"),
   submission: (id) => request(`api/submissions/${encodeURIComponent(id)}`),
   model: () => request("api/model"),
+  deleteSystem: (name) => request(`api/systems?name=${encodeURIComponent(name)}`, { method: "DELETE" }),
 };

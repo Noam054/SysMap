@@ -1,6 +1,8 @@
 """Build a Mermaid flowchart from normalized models."""
 import re
 
+from app.core.normalize import ENDPOINTS
+
 
 def _id(prefix, text):
     return prefix + "_" + re.sub(r"[^A-Za-z0-9]", "_", text)
@@ -36,4 +38,17 @@ def build_mermaid(models):
                 known.add(link["to"])
             label = f'|{_label(link["protocol"])}|' if link["protocol"] else ""
             lines.append(f'  {_id("sys", m["system"])} -->{label} {_id("sys", link["to"])}')
+    for m in models:
+        conns = m.get("connections") or []
+        if any(ENDPOINTS in (c["from"], c["to"]) for c in conns):
+            lines.append(f'  {_id("ep", m["system"])}[["{_label(ENDPOINTS)}"]]')
+        for c in conns:
+            ends = [
+                _id("ep", m["system"]) if n == ENDPOINTS else _id("srv", f'{m["system"]}_{n}')
+                for n in (c["from"], c["to"])
+            ]
+            text = " ".join(x for x in (c["protocol"], c["ports"]) if x)
+            label = f'|{_label(text)}|' if text else ""
+            arrow = "<-->" if c.get("both") else "-->"
+            lines.append(f"  {ends[0]} {arrow}{label} {ends[1]}")
     return "\n".join(lines)

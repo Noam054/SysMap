@@ -12,6 +12,29 @@ export function isVisible(question, answers) {
   return answers[cond.question] === cond.equals;
 }
 
+// Options of a choice question: the answers typed in other lists when it has "options_from"
+// (e.g. "servers.name" = every server name typed in "servers"; it may also be a list of such texts),
+// then its fixed "options".
+// owners: the rows the question sits in, by list id (e.g. { servers: <this server's row> }). A row never
+// offers itself: a server's "Connected to" does not list that same server.
+// Keep in step with choice_options() in backend/app/core/validation.py.
+export function choiceOptions(question, root, owners = {}) {
+  const options = [];
+  const refs = !question.options_from ? [] : Array.isArray(question.options_from) ? question.options_from : [question.options_from];
+  for (const ref of refs) {
+    const [listId, field] = ref.split(".");
+    const own = owners[listId];
+    const rows = root && Array.isArray(root[listId]) ? root[listId] : [];
+    for (const row of rows) {
+      if (row === own) continue;
+      const v = row && typeof row[field] === "string" ? row[field].trim() : "";
+      if (v && !options.includes(v)) options.push(v);
+    }
+  }
+  for (const o of question.options || []) if (!options.includes(o)) options.push(o);
+  return options;
+}
+
 // Drop answers to hidden questions and blank rows, so only meaningful data is sent.
 export function pruneHidden(questions, answers) {
   const out = {};
@@ -32,7 +55,9 @@ export function pruneHidden(questions, answers) {
 }
 
 // Returns [{ path, message }]. Paths look like "servers[0].site".
-export function validate(questions, answers, prefix = "") {
+// root: the top-level answers (used by "options_from"); defaults to answers.
+// owners: the list rows these answers sit in, by list id (see choiceOptions).
+export function validate(questions, answers, prefix = "", root = answers, owners = {}) {
   const errors = [];
   for (const q of questions) {
     const path = prefix + q.id;
@@ -55,13 +80,13 @@ export function validate(questions, answers, prefix = "") {
         if (typeof value !== "boolean") errors.push({ path, message: "Choose yes or no" });
         break;
       case "choice":
-        if (!(q.options || []).includes(value)) errors.push({ path, message: "Choose one of the options" });
+        if (!choiceOptions(q, root, owners).includes(value)) errors.push({ path, message: "Choose one of the options" });
         break;
       case "list":
         if (!Array.isArray(value)) {
           errors.push({ path, message: "Must be a list" });
         } else {
-          value.forEach((row, i) => errors.push(...validate(q.item, row, `${path}[${i}].`)));
+          value.forEach((row, i) => errors.push(...validate(q.item, row, `${path}[${i}].`, root, { ...owners, [q.id]: row })));
         }
         break;
       default:

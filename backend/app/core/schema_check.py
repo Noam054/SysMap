@@ -37,11 +37,11 @@ def check_definition(d):
     if not isinstance(questions, list) or not questions:
         errors.append("questions: must be a non-empty list")
     else:
-        _check_questions(questions, "", errors)
+        _check_questions(questions, "", errors, questions)
     return errors
 
 
-def _check_questions(questions, prefix, errors):
+def _check_questions(questions, prefix, errors, top):
     by_id = {}
     for i, q in enumerate(questions):
         if not isinstance(q, dict):
@@ -66,7 +66,18 @@ def _check_questions(questions, prefix, errors):
             errors.append(f"{where}: type must be one of {sorted(TYPES)}")
         elif qtype == "choice":
             options = q.get("options")
-            if not isinstance(options, list) or not options or not all(isinstance(o, str) and o for o in options):
+            if "options_from" in q:
+                refs = q["options_from"]
+                if isinstance(refs, list) and refs:
+                    for ref in refs:
+                        _check_options_from(ref, where, top, errors)
+                else:
+                    _check_options_from(refs, where, top, errors)
+                if options is not None and (
+                    not isinstance(options, list) or not all(isinstance(o, str) and o for o in options)
+                ):
+                    errors.append(f"{where}: 'options' must be a list of texts")
+            elif not isinstance(options, list) or not options or not all(isinstance(o, str) and o for o in options):
                 errors.append(f"{where}: a choice question needs 'options', a non-empty list of texts")
         elif qtype == "number":
             lo, hi = q.get("min"), q.get("max")
@@ -81,13 +92,32 @@ def _check_questions(questions, prefix, errors):
             if not isinstance(item, list) or not item:
                 errors.append(f"{where}: a list question needs 'item', the non-empty list of questions asked for each row")
             else:
-                _check_questions(item, f"{where}[].", errors)
+                _check_questions(item, f"{where}[].", errors, top)
 
         if "show_if" in q:
             _check_show_if(q["show_if"], where, by_id, errors)
 
         if isinstance(qid, str) and qid:
             by_id.setdefault(qid, q)
+
+
+def _check_options_from(ref, where, top, errors):
+    """options_from = "<list id>.<field id>": a top-level list question and a text field in its rows."""
+    hint = (
+        "options_from must look like \"servers.name\" (or a list of them): "
+        "a top-level list question and a text question in its rows"
+    )
+    if not isinstance(ref, str) or ref.count(".") != 1:
+        errors.append(f"{where}: {hint}")
+        return
+    list_id, field = ref.split(".")
+    lst = next((x for x in top if isinstance(x, dict) and x.get("id") == list_id), None)
+    if lst is None or lst.get("type") != "list" or not isinstance(lst.get("item"), list):
+        errors.append(f"{where}: options_from refers to '{list_id}', which is not a top-level list question")
+        return
+    fq = next((x for x in lst["item"] if isinstance(x, dict) and x.get("id") == field), None)
+    if fq is None or fq.get("type") != "text":
+        errors.append(f"{where}: options_from refers to '{field}', which is not a text question in '{list_id}'")
 
 
 def _check_show_if(cond, where, by_id, errors):

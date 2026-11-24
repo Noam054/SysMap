@@ -44,6 +44,16 @@ def load_questionnaires():
     return latest
 
 
+@app.middleware("http")
+async def always_revalidate(request, call_next):
+    """Browsers must check with the server before reusing a saved copy, so after an upgrade everyone
+    gets the new web app at once. Unchanged files still cost almost nothing: the browser sends the
+    file's ETag and the server answers "304 Not Modified" without sending the file again."""
+    response = await call_next(request)
+    response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 @app.on_event("startup")
 def startup():
     init_db()
@@ -124,6 +134,19 @@ def _latest_models():
     with SessionLocal() as db:
         rows = db.query(Submission).order_by(Submission.created_at.asc()).all()
         return list({r.system_name: r.normalized for r in rows}.values())
+
+
+@app.delete("/api/systems")
+def delete_system(name: str):
+    """Delete every submission of one system, so it disappears from the diagram.
+    The name is a query parameter (?name=...) because system names may contain '/'."""
+    with SessionLocal() as db:
+        deleted = db.query(Submission).filter(Submission.system_name == name).delete()
+        db.commit()
+    if not deleted:
+        raise HTTPException(404, "Unknown system")
+    logger.info("Deleted system %r (%d submissions)", name, deleted)
+    return {"system": name, "deleted": deleted}
 
 
 @app.get("/api/model")
