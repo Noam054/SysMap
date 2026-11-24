@@ -1,0 +1,13 @@
+backend:
+  image:
+    repository: registry.example.internal/sysmap/backend   # set to your internal registry
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+database:
+  # Point to your existing Postgres. Do not commit real passwords.
+  url: "postgresql+psycopg://sysmap:CHANGE_ME@postgres.example.internal:5432/sysmap"

@@ -1,0 +1,30 @@
+{
+  "id": "system-basic",
+  "version": 1,
+  "title": "Basic system information",
+  "questions": [
+    {"id": "system_name", "type": "text", "label": "What is the name of your system?", "required": true},
+    {"id": "server_count", "type": "number", "label": "How many servers do you have?", "required": true, "min": 0},
+    {
+      "id": "servers", "type": "list", "label": "Describe each server",
+      "item": [
+        {"id": "name", "type": "text", "label": "Server name", "required": true},
+        {"id": "site", "type": "text", "label": "In which site is it placed?", "required": true},
+        {"id": "role", "type": "choice", "label": "Role", "options": ["web", "app", "database", "storage", "other"]},
+        {"id": "os", "type": "text", "label": "Operating system"}
+      ]
+    },
+    {
+      "id": "depends_on", "type": "list", "label": "Which other systems does your system connect to?",
+      "item": [
+        {"id": "system", "type": "text", "label": "System name", "required": true},
+        {"id": "protocol", "type": "text", "label": "Protocol / port"}
+      ]
+    },
+    {"id": "has_dr", "type": "boolean", "label": "Do you have a disaster recovery site?"},
+    {
+      "id": "dr_site", "type": "text", "label": "Where is the DR site?", "required": true,
+      "show_if": {"question": "has_dr", "equals": true}
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sysmap
+description: SysMap - organization systems architecture mapper
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

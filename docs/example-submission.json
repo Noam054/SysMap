@@ -1,0 +1,14 @@
+{
+  "questionnaire_id": "system-basic",
+  "answers": {
+    "system_name": "Billing",
+    "server_count": 2,
+    "servers": [
+      {"name": "bill-app-1", "site": "Haifa", "role": "app", "os": "RHEL 9"},
+      {"name": "bill-db-1", "site": "Haifa", "role": "database"}
+    ],
+    "depends_on": [{"system": "Auth", "protocol": "LDAPS/636"}],
+    "has_dr": true,
+    "dr_site": "Beer Sheva"
+  }
+}

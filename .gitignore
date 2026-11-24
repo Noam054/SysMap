@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+sysmap.db
+.env
+my-values.yaml
