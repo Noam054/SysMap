@@ -10,6 +10,9 @@ spec:
   template:
     metadata:
       labels: {app: {{ .Release.Name }}-backend}
+      annotations:
+        # Changes when the DB secret changes, so `helm upgrade` restarts the pods.
+        checksum/db: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       securityContext:
         runAsNonRoot: true

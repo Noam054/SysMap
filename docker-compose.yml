@@ -8,6 +8,11 @@ services:
       POSTGRES_DB: sysmap
     ports: ["5432:5432"]
     volumes: ["dbdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sysmap -d sysmap"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
   backend:
     build:
       context: .
@@ -15,7 +20,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://sysmap:sysmap@db:5432/sysmap
     ports: ["8000:8000"]
-    depends_on: [db]
+    depends_on:
+      db:
+        condition: service_healthy
     # Edit questions or the web app and just refresh the browser (no rebuild needed):
     volumes:
       - ./backend/questionnaires:/srv/questionnaires:ro

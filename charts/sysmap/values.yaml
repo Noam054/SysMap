@@ -9,5 +9,7 @@ backend:
     limits: {cpu: 500m, memory: 512Mi}
 
 database:
-  # Point to your existing Postgres. Do not commit real passwords.
-  url: "postgresql+psycopg://sysmap:CHANGE_ME@postgres.example.internal:5432/sysmap"
+  # Required. Point to your existing Postgres, in my-values.yaml (git-ignored), for example:
+  #   url: "postgresql+psycopg://sysmap:<password>@<postgres-host>:5432/sysmap"
+  # Do not commit real passwords. The install fails if this is empty or still a placeholder.
+  url: ""
