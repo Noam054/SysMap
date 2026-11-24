@@ -1,0 +1,9 @@
+{
+  "name": "sysmap-frontend",
+  "private": true,
+  "type": "module",
+  "description": "No dependencies and no build step. Only the tests need Node 20+ (built-in test runner).",
+  "scripts": {
+    "test": "node --test"
+  }
+}

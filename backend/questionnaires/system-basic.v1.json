@@ -6,7 +6,7 @@
     {"id": "system_name", "type": "text", "label": "What is the name of your system?", "required": true},
     {"id": "server_count", "type": "number", "label": "How many servers do you have?", "required": true, "min": 0},
     {
-      "id": "servers", "type": "list", "label": "Describe each server",
+      "id": "servers", "type": "list", "label": "Describe each server", "row_label": "Server",
       "item": [
         {"id": "name", "type": "text", "label": "Server name", "required": true},
         {"id": "site", "type": "text", "label": "In which site is it placed?", "required": true},
@@ -15,7 +15,7 @@
       ]
     },
     {
-      "id": "depends_on", "type": "list", "label": "Which other systems does your system connect to?",
+      "id": "depends_on", "type": "list", "label": "Which other systems does your system connect to?", "row_label": "Connection",
       "item": [
         {"id": "system", "type": "text", "label": "System name", "required": true},
         {"id": "protocol", "type": "text", "label": "Protocol / port"}

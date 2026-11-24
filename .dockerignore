@@ -1,0 +1,11 @@
+.git
+**/__pycache__
+**/*.pyc
+sysmap.db
+.env
+my-values.yaml
+charts
+docs
+frontend/tests
+frontend/package.json
+backend/tests

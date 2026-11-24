@@ -9,10 +9,16 @@ services:
     ports: ["5432:5432"]
     volumes: ["dbdata:/var/lib/postgresql/data"]
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://sysmap:sysmap@db:5432/sysmap
     ports: ["8000:8000"]
     depends_on: [db]
+    # Edit questions or the web app and just refresh the browser (no rebuild needed):
+    volumes:
+      - ./backend/questionnaires:/srv/questionnaires:ro
+      - ./frontend:/srv/frontend:ro
 volumes:
   dbdata:
