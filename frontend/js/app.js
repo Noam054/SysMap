@@ -27,12 +27,13 @@ async function route() {
       if (a.dataset.nav === nav) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
     });
-    app.classList.toggle("wide", page === pageDiagram || page === pageFill);
+    app.classList.toggle("wide", page === pageDiagram);
+    app.classList.toggle("fill", page === pageFill);
     app.classList.toggle("full", page === pageSystem);
     app.replaceChildren(el("p", { class: "muted" }, "Loading…"));
     try {
       const content = await page(...match.slice(1).map(decodeURIComponent));
-      if (token === routeToken) app.replaceChildren(...[content].flat(Infinity));
+      if (token === routeToken) app.replaceChildren(...[content].flat(Infinity).filter((x) => x != null)); // a page leaves out empty sections as null
     } catch (err) {
       if (token === routeToken) app.replaceChildren(el("div", { class: "banner error" }, err.message || String(err)));
     }
@@ -101,8 +102,8 @@ function livePreview() {
   const update = (answers) => {
     const model = normalize(answers);
     title.textContent = model.system || "Your system";
-    if (!model.servers.length) {
-      body.replaceChildren(el("p", { class: "muted empty" }, "Give a server a name to see it here."));
+    if (!model.servers.length && !model.segments.length) {
+      body.replaceChildren(el("p", { class: "muted empty" }, "Name a segment or a server to see it here."));
       return;
     }
     body.innerHTML = renderSvg([model], { showSystems: false, background: false }); // safe: diagram.js escapes every text value
@@ -167,6 +168,7 @@ async function pageDiagram() {
     el("ul", { class: "system-list" },
       models.map((m) => {
         const servers = (m.servers || []).length;
+        const segs = (m.segments || []).length;
         const conns = (m.connections || []).length;
         return el("li", {},
           el("a", { href: systemHref(m.system) },
@@ -174,6 +176,7 @@ async function pageDiagram() {
             el("span", { class: "system-meta" },
               (m.sites || []).length ? (m.sites || []).map((x) => (x === m.dr_site ? `${x} (DR)` : x)).join(" · ") : "No sites",
               " — ",
+              segs ? `${count(segs, "segment", "segments")}, ` : "",
               count(servers, "server", "servers"),
               conns ? `, ${count(conns, "connection", "connections")}` : ""),
             el("span", { class: "arrow", "aria-hidden": "true" }, "→")));
@@ -201,14 +204,34 @@ async function pageSystem(name) {
     canvas.append(el("p", { class: "muted empty" }, "No servers described yet."));
   }
 
+  const segments = model.segments || [];
+  const serverNames = new Set((model.servers || []).flatMap((x) => [x.key || x.name, x.name]));
+  // A connection end can be a server or a whole segment: say which (and its site), so the table reads like a
+  // firewall rule. Servers and segments are named "DB (Sapir)"; older saved answers use the name alone.
+  const endText = (n) => {
+    if (serverNames.has(n)) return n;
+    const g = segments.find((x) => x.key === n) || segments.find((x) => x.name === n);
+    return g ? `${g.name} (segment in ${g.site})` : n;
+  };
+  const segTable = segments.length
+    ? el("table", { class: "connections" },
+        el("thead", {}, el("tr", {}, ["Site", "Segment", "Subnet", "Servers"].map((h) => el("th", {}, h)))),
+        el("tbody", {}, segments.map((g) =>
+          el("tr", {},
+            el("td", {}, g.site),
+            el("td", {}, g.name),
+            el("td", { class: "mono" }, g.subnet || "—"),
+            el("td", {}, (model.servers || []).filter((x) => x.segment === g.name && x.site === g.site).map((x) => x.name).join(", ") || "—")))))
+    : null;
+
   const connections = model.connections || [];
   const table = connections.length
     ? el("table", { class: "connections" },
         el("thead", {}, el("tr", {}, ["From", "To", "Protocol", "Ports"].map((h) => el("th", {}, h)))),
         el("tbody", {}, connections.map((c) =>
           el("tr", {},
-            el("td", {}, c.from),
-            el("td", {}, `${c.both ? "↔" : "→"} ${c.to}`),
+            el("td", {}, endText(c.from)),
+            el("td", {}, `${c.both ? "↔" : "→"} ${endText(c.to)}`),
             el("td", {}, c.protocol),
             el("td", {}, c.ports)))))
     : null;
@@ -221,7 +244,9 @@ async function pageSystem(name) {
     : null;
 
   const legend = el("div", { class: "legend" },
-    ROLES.map((r) => el("span", { style: `--swatch:${roleColor(r)}` }, r)));
+    ROLES.map((r) => el("span", { style: `--swatch:${roleColor(r)}` }, r)),
+    el("span", { class: "legend-seg" }, "network segment (subnet)"),
+    el("span", { class: "legend-note" }, "→ ← ↔ ENDPOINTS: a connection with all endpoints (out, in, both ways)"));
 
   return [
     back,
@@ -234,7 +259,9 @@ async function pageSystem(name) {
         el("button", { type: "button", class: "btn danger small", onclick: (e) => deleteSystem(model.system, e.currentTarget) }, "Delete"))),
     legend,
     canvas,
-    table ? el("h2", { class: "section-title" }, "Connections between servers") : null,
+    segTable ? el("h2", { class: "section-title" }, "Network segments") : null,
+    segTable,
+    table ? el("h2", { class: "section-title" }, "Connections (port openings)") : null,
     table,
     linksTable ? el("h2", { class: "section-title" }, "Connects to other systems") : null,
     linksTable,

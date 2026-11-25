@@ -71,23 +71,23 @@ class ConnectionTests(unittest.TestCase):
         a["servers"][0]["has_connections"] = False
         # Only the database's own answer is left: the MSSQL connection, seen from its side.
         self.assertEqual(normalize(a)["connections"], [
-            {"from": "epo-app-1", "to": "epo-db-1", "both": False, "protocol": "MSSQL", "ports": "1433"},
+            {"from": "epo-app-1 (Ofek)", "to": "epo-db-1 (Ofek)", "both": False, "protocol": "MSSQL", "ports": "1433"},
         ])
 
     def test_normalize_directions_and_duplicates(self):
         conns = normalize(GOOD)["connections"]
         self.assertEqual(conns, [
-            {"from": "epo-app-1", "to": "epo-db-1", "both": False, "protocol": "MSSQL", "ports": "1433"},
-            {"from": ENDPOINTS, "to": "epo-app-1", "both": False, "protocol": "HTTPS", "ports": "443, 8443"},
-            {"from": "epo-app-1", "to": ENDPOINTS, "both": True, "protocol": "Agent", "ports": "8081"},
+            {"from": "epo-app-1 (Ofek)", "to": "epo-db-1 (Ofek)", "both": False, "protocol": "MSSQL", "ports": "1433"},
+            {"from": ENDPOINTS, "to": "epo-app-1 (Ofek)", "both": False, "protocol": "HTTPS", "ports": "443, 8443"},
+            {"from": "epo-app-1 (Ofek)", "to": ENDPOINTS, "both": True, "protocol": "Agent", "ports": "8081"},
         ])
 
     def test_mermaid(self):
         out = build_mermaid([normalize(GOOD)])
-        self.assertIn("srv_ePO_epo_app_1 -->|MSSQL 1433| srv_ePO_epo_db_1", out)
+        self.assertIn("srv_ePO_epo_app_1__Ofek_ -->|MSSQL 1433| srv_ePO_epo_db_1__Ofek_", out)
         self.assertIn('ep_ePO[["All endpoints"]]', out)
-        self.assertIn("ep_ePO -->|HTTPS 443, 8443| srv_ePO_epo_app_1", out)
-        self.assertIn("srv_ePO_epo_app_1 <-->|Agent 8081| ep_ePO", out)
+        self.assertIn("ep_ePO -->|HTTPS 443, 8443| srv_ePO_epo_app_1__Ofek_", out)
+        self.assertIn("srv_ePO_epo_app_1__Ofek_ <-->|Agent 8081| ep_ePO", out)
 
 
 class QuestionnaireV2Tests(unittest.TestCase):
@@ -137,7 +137,7 @@ class SiteTests(unittest.TestCase):
         self.assertEqual([(x["name"], x["site"]) for x in n["servers"]],
                          [("epo-app-1", "Ofek"), ("epo-db-1", "Ofek"), ("epo-db-2", "Sapir")])
         self.assertEqual(n["sites"], ["Ofek", "Sapir"])
-        self.assertEqual(n["connections"][0]["to"], "epo-db-2")
+        self.assertEqual(n["connections"][0]["to"], "epo-db-2 (Sapir)")
 
     def test_other_site_is_required(self):
         a = self._two_sites()
@@ -155,6 +155,22 @@ class SiteTests(unittest.TestCase):
         self.assertEqual(n["sites"], ["Mazpen", "Ofek"])
         self.assertEqual(normalize(dict(GOOD, dr_site=NO_DR))["dr_site"], "")
         self.assertEqual(normalize(dict(GOOD, dr_site=NO_DR))["sites"], ["Ofek"])
+
+    def test_server_names_are_unique_in_all_sites(self):
+        a = self._two_sites()
+        a["other_servers"][0]["name"] = " EPO-APP-1 "  # same name, other case and spaces
+        a["servers"][0]["connections"] = []
+        a["servers"][0]["has_connections"] = False
+        self.assertEqual(validate_answers(DEF, a), [
+            "other_servers[0].name: is already used (see servers[0].name); each answer here must be different",
+        ])
+
+    def test_unique_in_the_schema(self):
+        d = json.loads(json.dumps(DEF))
+        d["questions"][2]["item"][0]["unique"] = ""
+        self.assertIn("unique must be a group name", " ".join(check_definition(d)))
+        d["questions"][2]["item"][1]["unique"] = "x"  # role is a choice
+        self.assertIn("unique only works on text questions", " ".join(check_definition(d)))
 
     def test_v1_answers_still_work(self):
         n = normalize({"system_name": "Billing", "servers": [{"name": "x", "site": "Haifa", "role": "app"}],
@@ -179,12 +195,13 @@ class OptionsFromSchemaTests(unittest.TestCase):
 
     def test_list_of_sources(self):
         self.assertEqual(check_definition(self._def(["servers.name", "servers.name"])), [])
-        self.assertIn("not a top-level list question", " ".join(check_definition(self._def(["servers.name", "x.y"]))))
+        self.assertIn("not a question here or around", " ".join(check_definition(self._def(["servers.name", "x.y"]))))
 
     def test_bad_references(self):
-        self.assertIn("not a top-level list question", " ".join(check_definition(self._def("nothing.name"))))
+        self.assertIn("not a question here or around", " ".join(check_definition(self._def("nothing.name"))))
         self.assertIn("not a text question", " ".join(check_definition(self._def("servers.site"))))
-        self.assertIn("must look like", " ".join(check_definition(self._def("servers"))))
+        self.assertIn("not a text question", " ".join(check_definition(self._def("servers"))))
+        self.assertIn("must look like", " ".join(check_definition(self._def("servers..name"))))
 
 
 if __name__ == "__main__":

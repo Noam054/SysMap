@@ -60,7 +60,7 @@ test("svg contains the names and no broken numbers", () => {
   const svg = renderSvg(MODELS);
   assert.ok(svg.startsWith("<svg"));
   assert.ok(svg.endsWith("</svg>"));
-  for (const word of ["Billing", "Auth", "bill-app-1", "Site: Haifa", "LDAPS/636", "no servers described"]) {
+  for (const word of ["Billing", "Auth", "bill-app-1", ">Haifa<", "LDAPS/636", "nothing described yet"]) {
     assert.ok(svg.includes(word), word);
   }
   assert.ok(!/NaN|undefined|Infinity/.test(svg));

@@ -9,6 +9,8 @@ import re
 import sys
 from pathlib import Path
 
+from app.core.validation import FORMATS
+
 TYPES = {"text", "number", "boolean", "choice", "list"}
 QUESTIONNAIRE_ID_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 QUESTION_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -37,11 +39,12 @@ def check_definition(d):
     if not isinstance(questions, list) or not questions:
         errors.append("questions: must be a non-empty list")
     else:
-        _check_questions(questions, "", errors, questions)
+        _check_questions(questions, "", errors, [questions])
     return errors
 
 
-def _check_questions(questions, prefix, errors, top):
+def _check_questions(questions, prefix, errors, stack):
+    """stack: the question lists we are inside, the top level first and `questions` last."""
     by_id = {}
     for i, q in enumerate(questions):
         if not isinstance(q, dict):
@@ -68,11 +71,13 @@ def _check_questions(questions, prefix, errors, top):
             options = q.get("options")
             if "options_from" in q:
                 refs = q["options_from"]
-                if isinstance(refs, list) and refs:
-                    for ref in refs:
-                        _check_options_from(ref, where, top, errors)
-                else:
-                    _check_options_from(refs, where, top, errors)
+                for ref in refs if isinstance(refs, list) and refs else [refs]:
+                    if isinstance(ref, dict):
+                        label = ref.get("label")
+                        if label is not None and (not isinstance(label, str) or "{value}" not in label):
+                            errors.append(f"{where}: an options_from label must be a text with {{value}} in it")
+                        ref = ref.get("path")
+                    _check_path(ref, where, "options_from", stack, errors, {"text"})
                 if options is not None and (
                     not isinstance(options, list) or not all(isinstance(o, str) and o for o in options)
                 ):
@@ -92,7 +97,63 @@ def _check_questions(questions, prefix, errors, top):
             if not isinstance(item, list) or not item:
                 errors.append(f"{where}: a list question needs 'item', the non-empty list of questions asked for each row")
             else:
-                _check_questions(item, f"{where}[].", errors, top)
+                _check_questions(item, f"{where}[].", errors, [*stack, item])
+            if "start_empty" in q and not isinstance(q["start_empty"], bool):
+                errors.append(f"{where}: start_empty must be true or false")
+
+        if "unique" in q:
+            if not isinstance(q["unique"], str) or not q["unique"].strip():
+                errors.append(f"{where}: unique must be a group name, e.g. \"server-name\"")
+            elif qtype != "text":
+                errors.append(f"{where}: unique only works on text questions")
+
+        if "exclude" in q:
+            refs = q["exclude"]
+            if qtype != "choice":
+                errors.append(f"{where}: exclude only works on choice questions")
+            for ref in refs if isinstance(refs, list) and refs else [refs]:
+                _check_path(ref, where, "exclude", stack, errors, {"text", "choice"})
+        if "start_empty" in q and qtype != "list":
+            errors.append(f"{where}: start_empty only works on list questions")
+
+        if "format" in q:
+            if q["format"] not in FORMATS:
+                errors.append(f"{where}: format must be one of {sorted(FORMATS)}")
+            elif qtype != "text":
+                errors.append(f"{where}: format only works on text questions")
+
+        if "not_in" in q:
+            refs = q["not_in"]
+            if qtype != "text":
+                errors.append(f"{where}: not_in only works on text questions")
+            for ref in refs if isinstance(refs, list) and refs else [refs]:
+                _check_path(ref, where, "not_in", stack, errors, {"text"})
+
+        if "multiple" in q and (not isinstance(q["multiple"], bool) or qtype != "choice"):
+            errors.append(f"{where}: multiple must be true or false, on a choice question")
+
+        for flag in ("collapsible",):
+            if flag in q and (not isinstance(q[flag], bool) or qtype != "list"):
+                errors.append(f"{where}: {flag} must be true or false, on a list question")
+        if "add_label" in q and (not isinstance(q["add_label"], str) or not q["add_label"].strip() or qtype != "list"):
+            errors.append(f"{where}: add_label must be a text, on a list question")
+
+        for flag in ("duplicate", "copy_from_site"):
+            if flag in q and (not isinstance(q[flag], bool) or qtype != "list"):
+                errors.append(f"{where}: {flag} must be true or false, on a list question")
+
+        if "distinct" in q:
+            if not isinstance(q["distinct"], bool):
+                errors.append(f"{where}: distinct must be true or false")
+            elif len(stack) < 2:
+                errors.append(f"{where}: distinct only works on a question inside a list")
+            elif qtype != "text":
+                errors.append(f"{where}: distinct only works on text questions")
+
+        if "differs_from" in q:
+            other = by_id.get(q["differs_from"])
+            if other is None:
+                errors.append(f"{where}: differs_from must name an earlier question in the same list")
 
         if "show_if" in q:
             _check_show_if(q["show_if"], where, by_id, errors)
@@ -101,23 +162,40 @@ def _check_questions(questions, prefix, errors, top):
             by_id.setdefault(qid, q)
 
 
-def _check_options_from(ref, where, top, errors):
-    """options_from = "<list id>.<field id>": a top-level list question and a text field in its rows."""
+def _check_path(ref, where, key, stack, errors, types):
+    """A path like "servers.name", "/other_sites.servers.name" or "/primary_site" (see validation.resolve).
+    Returns the questions of the list that holds the last part, or None when the path is wrong."""
     hint = (
-        "options_from must look like \"servers.name\" (or a list of them): "
-        "a top-level list question and a text question in its rows"
+        f"{key} must look like \"servers.name\" (or a list of them): list questions, then a question in their rows; "
+        "start with / to begin at the top level"
     )
-    if not isinstance(ref, str) or ref.count(".") != 1:
+    if not isinstance(ref, str) or not ref.strip("/") or any(not x for x in ref.lstrip("/").split(".")):
         errors.append(f"{where}: {hint}")
-        return
-    list_id, field = ref.split(".")
-    lst = next((x for x in top if isinstance(x, dict) and x.get("id") == list_id), None)
-    if lst is None or lst.get("type") != "list" or not isinstance(lst.get("item"), list):
-        errors.append(f"{where}: options_from refers to '{list_id}', which is not a top-level list question")
-        return
-    fq = next((x for x in lst["item"] if isinstance(x, dict) and x.get("id") == field), None)
-    if fq is None or fq.get("type") != "text":
-        errors.append(f"{where}: options_from refers to '{field}', which is not a text question in '{list_id}'")
+        return None
+    parts = ref.lstrip("/").split(".")
+    if ref.startswith("/"):
+        level = stack[0]
+    else:
+        level = next((qs for qs in reversed(stack) if _find(qs, parts[0])), None)
+        if level is None:
+            errors.append(f"{where}: {key} refers to '{parts[0]}', which is not a question here or around this question")
+            return None
+    for part in parts[:-1]:
+        lst = _find(level, part)
+        if lst is None or lst.get("type") != "list" or not isinstance(lst.get("item"), list):
+            errors.append(f"{where}: {key} refers to '{part}', which is not a list question")
+            return None
+        level = lst["item"]
+    field = _find(level, parts[-1])
+    if field is None or field.get("type") not in types:
+        kinds = " or ".join(sorted(types))
+        errors.append(f"{where}: {key} refers to '{parts[-1]}', which is not a {kinds} question in '{ref}'")
+        return None
+    return level
+
+
+def _find(questions, qid):
+    return next((x for x in questions if isinstance(x, dict) and x.get("id") == qid), None)
 
 
 def _check_show_if(cond, where, by_id, errors):

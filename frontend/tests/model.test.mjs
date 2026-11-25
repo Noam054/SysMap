@@ -40,7 +40,7 @@ test("v2: primary site, other sites, DR site (as in backend/tests/test_connectio
   assert.deepEqual(m.servers.map((s) => [s.name, s.site]), [["epo-app-1", "Ofek"], ["epo-db-2", "Sapir"]]);
   assert.deepEqual(m.sites, ["Mazpen", "Ofek", "Sapir"]);
   assert.equal(m.dr_site, "Mazpen");
-  assert.equal(m.connections[0].to, "epo-db-2");
+  assert.equal(m.connections[0].to, "epo-db-2 (Sapir)");
   assert.equal(normalize({ primary_site: "Ofek", dr_site: NO_DR }).dr_site, "");
   const no = normalize({ primary_site: "Ofek", has_other_sites: false, other_servers: [{ site: "Sapir", name: "x" }] });
   assert.deepEqual(no.servers, []);
@@ -50,11 +50,11 @@ test("v1 answers: same model as the server: directions, duplicates, DR site", ()
   const m = normalize(GOOD);
   assert.equal(m.system, "ePO");
   assert.deepEqual(m.sites, ["Beer Sheva", "Haifa"]);
-  assert.deepEqual(m.servers[0], { name: "epo-app-1", site: "Haifa", role: "app", os: "Linux" });
+  assert.deepEqual(m.servers[0], { name: "epo-app-1", site: "Haifa", role: "app", os: "Linux", segment: "", key: "epo-app-1 (Haifa)" });
   assert.deepEqual(m.connections, [
-    { from: "epo-app-1", to: "epo-db-1", both: false, protocol: "MSSQL", ports: "1433" },
-    { from: ENDPOINTS, to: "epo-app-1", both: false, protocol: "HTTPS", ports: "443, 8443" },
-    { from: "epo-app-1", to: ENDPOINTS, both: true, protocol: "Agent", ports: "8081" },
+    { from: "epo-app-1 (Haifa)", to: "epo-db-1 (Haifa)", both: false, protocol: "MSSQL", ports: "1433" },
+    { from: ENDPOINTS, to: "epo-app-1 (Haifa)", both: false, protocol: "HTTPS", ports: "443, 8443" },
+    { from: "epo-app-1 (Haifa)", to: ENDPOINTS, both: true, protocol: "Agent", ports: "8081" },
   ]);
 });
 
@@ -62,12 +62,12 @@ test("connections of a server that answered No are ignored", () => {
   const a = structuredClone(GOOD);
   a.servers[0].has_connections = false;
   assert.deepEqual(normalize(a).connections, [
-    { from: "epo-app-1", to: "epo-db-1", both: false, protocol: "MSSQL", ports: "1433" },
+    { from: "epo-app-1 (Haifa)", to: "epo-db-1 (Haifa)", both: false, protocol: "MSSQL", ports: "1433" },
   ]);
 });
 
 test("half-filled answers still give a model to draw", () => {
-  assert.deepEqual(normalize({}), { system: "", servers: [], sites: [], dr_site: "", links: [], connections: [] });
+  assert.deepEqual(normalize({}), { system: "", servers: [], segments: [], sites: [], dr_site: "", links: [], connections: [] });
   const m = normalize({
     servers: [
       { name: "", site: "Haifa" }, // no name yet: not drawn

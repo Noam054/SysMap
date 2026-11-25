@@ -30,7 +30,9 @@
           "id": "name",
           "type": "text",
           "label": "Server name",
-          "required": true
+          "required": true,
+          "unique": "server-name",
+          "help": "Each server name must be different, in all sites."
         },
         {
           "id": "role",
@@ -142,7 +144,9 @@
           "id": "name",
           "type": "text",
           "label": "Server name",
-          "required": true
+          "required": true,
+          "unique": "server-name",
+          "help": "Each server name must be different, in all sites."
         },
         {
           "id": "role",
