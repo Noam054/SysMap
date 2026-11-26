@@ -88,7 +88,10 @@ test("one system per picture: no system name inside; endpoints are one zone acro
   const toEnd = L.connections.find((c) => c.to === ENDPOINTS);
   assert.ok(Math.abs(toEnd.points.at(-1).y - e.y) < 0.5, "it ends on the top of the zone");
   const svg = renderSvg([MODEL], ONE);
-  for (const word of ["MSSQL 1433", ">ENDPOINTS<", ">All endpoints<", "HTTPS 443, 8443"]) assert.ok(svg.includes(word), word);
+  for (const word of ["MSSQL 1433", "HTTPS 443, 8443", "<title>All endpoints"]) assert.ok(svg.includes(word), word);
+  assert.equal((svg.match(/>Endpoints</g) || []).length, 1, "the zone says only \"Endpoints\"");
+  assert.ok(!svg.includes(">ENDPOINTS<") && !svg.includes(">All endpoints<"));
+  assert.ok(e.x === 0 && e.x + e.w === L.width && e.y + e.h === L.height, "the zone reaches the sides and the bottom");
   assert.ok(!layout([{ ...MODEL, connections: MODEL.connections.filter((c) => c.to !== ENDPOINTS) }], ONE).endpoints,
     "no zone when nothing connects to the endpoints");
   assert.ok(svg.includes('fill="#ffffff"/>'), "white background by default (downloads)");

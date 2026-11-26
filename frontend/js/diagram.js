@@ -51,7 +51,7 @@ const G = {
   siteGap: 150, sitePad: 34, siteHead: 62, siteMinW: 280, emptySiteH: 96,
   segPad: 26, segHead: 52, segGap: 56, segStagger: 90, segMinW: 240, segEmpty: 34,
   nodeW: 136, nodeH: 92, nodeGapX: 64, nodeGapY: 64, perRow: 3,
-  endGap: 130, endH: 196, endPad: 44, pcStep: 60, endOver: 200, zoneStep: 34, // the "All endpoints" zone at the bottom
+  endGap: 130, endH: 136, endPad: 44, pcStep: 60, endOver: 200, zoneStep: 34, // the "All endpoints" zone at the bottom
 };
 
 export function escapeXml(text) {
@@ -493,6 +493,14 @@ export function layout(models, { showSystems = true } = {}) {
     c.labelY = round(c.labelY + dy);
   }
 
+  // The endpoints zone reaches the picture's left, right and bottom edges: the ground under every site.
+  if (endpoints) {
+    endpoints.x = 0;
+    endpoints.w = round(width);
+    endpoints.h = round(height) - endpoints.y;
+    endpoints.pcs = Math.max(3, Math.min(40, Math.floor((endpoints.w - 2 * G.endPad) / G.pcStep)));
+  }
+
   return { width: round(width), height: round(height), systems: shown, sites, segments, servers, endpoints, edges, links: linkOut, connections };
 }
 
@@ -647,15 +655,14 @@ export function renderSvg(models, options = {}) {
   if (L.endpoints) {
     const e = L.endpoints;
     const step = (e.w - 2 * G.endPad) / e.pcs;
-    // PCs along the top (where the lines arrive), the name along the bottom so no arrow lands on it.
+    // Two rows of PCs, and the word "Endpoints" under them.
     const pcs = Array.from({ length: e.pcs }, (_, i) => pcIcon(e.x + G.endPad + step * (i + 0.5), e.y + 34)).join("") +
       Array.from({ length: e.pcs - 1 }, (_, i) => pcIcon(e.x + G.endPad + step * (i + 1), e.y + 88)).join("");
     out.push(
       `<g><title>All endpoints: the workstations of every site</title>` +
-        `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" rx="24" fill="${C.endFill}" stroke="${C.endLine}" stroke-width="1.4"/>` +
-        `<text x="${e.x + 26}" y="${e.y + e.h - 22}" font-size="10" font-weight="700" letter-spacing="1.5" fill="${C.conn}">ENDPOINTS</text>` +
-        `<text x="${e.x + 104}" y="${e.y + e.h - 21}" font-size="16" font-weight="700" fill="${C.endText}">All endpoints</text>` +
-        `<text x="${e.x + e.w - 26}" y="${e.y + e.h - 22}" text-anchor="end" font-size="11.5" fill="${C.muted}">the same workstations for every site and segment</text>` +
+        `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="${C.endFill}"/>` +
+        `<line x1="${e.x}" y1="${e.y}" x2="${e.x + e.w}" y2="${e.y}" stroke="${C.endLine}" stroke-width="1.6"/>` +
+        `<text x="${round(e.x + e.w / 2)}" y="${e.y + e.h - 20}" text-anchor="middle" font-size="16" font-weight="700" fill="${C.endText}">Endpoints</text>` +
         pcs + `</g>`,
     );
   }

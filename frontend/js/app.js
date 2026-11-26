@@ -224,10 +224,11 @@ async function pageSystem(name) {
 
   const options = { showSystems: false };
   const svgFile = renderSvg([model], options); // white background, for the downloads
-  const { width, height } = layout([model], options);
+  const { width, height, endpoints } = layout([model], options);
   const file = fileName(model.system);
 
-  const canvas = el("div", { class: "canvas" });
+  // With an endpoints zone the picture fills the card, so the zone sits on the card's sides and bottom.
+  const canvas = el("div", { class: endpoints ? "canvas flush" : "canvas" });
   if ((model.servers || []).length || (model.sites || []).length) {
     canvas.innerHTML = renderSvg([model], { ...options, background: false }); // safe: diagram.js escapes every text value
   } else {
@@ -276,8 +277,7 @@ async function pageSystem(name) {
   const legend = el("div", { class: "legend" },
     ROLES.map((r) => el("span", { style: `--swatch:${roleColor(r)}` }, r)),
     el("span", { class: "legend-seg" }, "network segment (subnet)"),
-    el("span", { class: "legend-idle" }, "grey: turned off, or open but not in use"),
-    el("span", { class: "legend-note" }, "the ENDPOINTS zone at the bottom: all workstations, the same for every site"));
+    el("span", { class: "legend-idle" }, "grey: turned off, or open but not in use"));
 
   const steps = model.skipping || [];
   const player = steps.length ? skippingPlayer(model, canvas) : null;

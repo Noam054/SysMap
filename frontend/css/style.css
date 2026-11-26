@@ -264,6 +264,9 @@ main.full { max-width: none; padding: 16px 24px 48px; }
 .canvas svg { display: block; max-width: 100%; height: auto; }
 .canvas > .empty { margin: auto; }
 .canvas.small { min-height: 0; padding: 16px; }
+/* The endpoints zone is the bottom of the picture: no padding on the sides and bottom, the picture as wide as the card. */
+.canvas.flush { padding: 32px 0 0; min-height: 0; }
+.canvas.flush svg { width: 100%; max-width: none; }
 
 /* In-app confirmation box */
 .dialog {
