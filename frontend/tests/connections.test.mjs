@@ -73,17 +73,24 @@ test("connections validate like the server does", () => {
   ]);
 });
 
-test("one system per picture: no system name inside; endpoints are tags, not a box", () => {
+test("one system per picture: no system name inside; endpoints are one zone across the bottom", () => {
   const L = layout([MODEL], ONE);
   assert.equal(L.systems.length, 0);
   assert.equal(L.edges.length, 0);
   assert.equal(L.links.length, 0);
-  assert.equal(L.connections.length, 1, "only server-to-server connections are lines");
   assert.deepEqual(L.sites.map((s) => s.name), ["Ofek"], "no Endpoints site");
-  const app = L.servers.find((s) => s.name === "epo-app-1");
-  assert.deepEqual(app.tags.map((t) => [t.arrow, t.label]), [["↔", "HTTPS 443, 8443"]]);
+  const e = L.endpoints;
+  const site = L.sites[0];
+  assert.ok(e.y > site.y + site.h, "below the sites");
+  assert.ok(e.x <= site.x && e.x + e.w >= site.x + site.w, "as wide as the sites");
+  assert.ok(e.pcs >= 3);
+  assert.equal(L.connections.length, 2, "the endpoints connection is a line too");
+  const toEnd = L.connections.find((c) => c.to === ENDPOINTS);
+  assert.ok(Math.abs(toEnd.points.at(-1).y - e.y) < 0.5, "it ends on the top of the zone");
   const svg = renderSvg([MODEL], ONE);
-  for (const word of ["MSSQL 1433", "↔ ENDPOINTS", "HTTPS 443, 8443"]) assert.ok(svg.includes(word), word);
+  for (const word of ["MSSQL 1433", ">ENDPOINTS<", ">All endpoints<", "HTTPS 443, 8443"]) assert.ok(svg.includes(word), word);
+  assert.ok(!layout([{ ...MODEL, connections: MODEL.connections.filter((c) => c.to !== ENDPOINTS) }], ONE).endpoints,
+    "no zone when nothing connects to the endpoints");
   assert.ok(svg.includes('fill="#ffffff"/>'), "white background by default (downloads)");
   assert.ok(!renderSvg([MODEL], { ...ONE, background: false }).includes('<rect width='), "see-through for the dotted canvas");
   assert.ok(!svg.includes("ePO"), "system name not drawn anywhere (server names are lowercase epo-…)");
@@ -148,7 +155,7 @@ function checkPicture(L) {
 
 test("lines avoid other servers and each other; labels cover no server or label", () => {
   const L = layout([BUSY], ONE);
-  assert.equal(L.connections.length, 6);
+  assert.equal(L.connections.length, 7); // the one with all endpoints is a line to the zone at the bottom
   checkPicture(L);
   const svg = renderSvg([BUSY], ONE);
   assert.equal((svg.match(/marker-start=/g) || []).length, 2, "the two two-way connections have two arrow heads");
@@ -191,4 +198,29 @@ test("server names must be different, in all sites (upper/lower case does not co
 test("a connection to an unknown server is skipped, not drawn wrong", () => {
   const L = layout([{ ...MODEL, connections: [{ from: "ghost", to: "epo-db-1", protocol: "x", ports: "1" }] }]);
   assert.equal(L.connections.length, 0);
+});
+
+test("what talks to the endpoints sits at the bottom of its site, and its arrows enter the zone side by side", () => {
+  const seg = (name, site) => ({ name, site, subnet: "", key: `${name} (${site})` });
+  const m = {
+    system: "Z", sites: ["Ofek", "Sapir"], dr_site: "", links: [],
+    segments: [seg("Users", "Ofek"), seg("Core", "Ofek"), seg("DB", "Ofek"), seg("Web", "Sapir"), seg("App", "Sapir")],
+    servers: [],
+    connections: [
+      { from: "Users (Ofek)", to: ENDPOINTS, both: false, protocol: "tcp", ports: "443" },
+      { from: "Web (Sapir)", to: ENDPOINTS, both: true, protocol: "tcp", ports: "8080" },
+      { from: "Core (Ofek)", to: "DB (Ofek)", both: false, protocol: "tcp", ports: "1433" },
+    ],
+  };
+  const L = layout([m], ONE);
+  for (const site of ["Ofek", "Sapir"]) {
+    const segs = L.segments.filter((g) => g.site === site);
+    const lowest = segs.reduce((a, b) => (b.y > a.y ? b : a));
+    assert.ok(["Users", "Web"].includes(lowest.name), `${lowest.name} is lowest in ${site}`);
+  }
+  const ends = L.connections.filter((c) => c.to === ENDPOINTS).map((c) => c.points.at(-1));
+  assert.equal(ends.length, 2);
+  assert.ok(ends.every((p) => Math.abs(p.y - L.endpoints.y) < 0.5), "both end on the top of the zone");
+  assert.ok(Math.abs(ends[0].x - ends[1].x) <= 40, "close together");
+  checkPicture(L);
 });

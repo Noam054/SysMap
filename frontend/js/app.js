@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { ROLES, layout, renderSvg, roleColor } from "./diagram.js";
+import { ROLES, layout, renderSvg, roleColor, skippingFrames } from "./diagram.js";
 import { confirmDialog, messageDialog } from "./dialog.js";
 import { el } from "./dom.js";
 import { renderForm } from "./form-ui.js";
@@ -10,6 +10,7 @@ const app = document.getElementById("app");
 const routes = [
   [/^#\/?$/, "home", pageHome],
   [/^#\/fill\/(.+)$/, "home", pageFill],
+  [/^#\/edit\/(.+)$/, "diagram", pageEdit],
   [/^#\/submissions$/, "submissions", pageSubmissions],
   [/^#\/diagram$/, "diagram", pageDiagram],
   [/^#\/diagram\/(.+)$/, "diagram", pageSystem],
@@ -28,7 +29,7 @@ async function route() {
       else a.removeAttribute("aria-current");
     });
     app.classList.toggle("wide", page === pageDiagram);
-    app.classList.toggle("fill", page === pageFill);
+    app.classList.toggle("fill", page === pageFill || page === pageEdit);
     app.classList.toggle("full", page === pageSystem);
     app.replaceChildren(el("p", { class: "muted" }, "Loading…"));
     try {
@@ -85,6 +86,35 @@ async function pageFill(id) {
   });
   return [
     el("h1", {}, definition.title),
+    el("div", { class: "fill-layout" }, el("div", { class: "fill-form" }, form), preview.node),
+  ];
+}
+
+// Edit a system's answers: the form starts from its newest answers, in the questionnaire version they were
+// given in (an older version's answers would not fit a newer form). Saving adds a new submission; the earlier
+// ones stay under Submissions. A new system name renames the system.
+async function pageEdit(name) {
+  const saved = await api.systemAnswers(name);
+  const definition = await api.questionnaire(saved.questionnaire, saved.version);
+  const latest = (await api.questionnaires()).find((q) => q.id === definition.id);
+  const preview = livePreview();
+  const form = renderForm(definition, {
+    initial: saved.answers,
+    submitLabel: "Save changes",
+    onChange: preview.update,
+    onSubmit: async (answers) => {
+      const result = await api.submit(definition.id, answers, { version: definition.version, replaces: name });
+      location.hash = systemHref(result.system);
+    },
+  });
+  return [
+    el("a", { class: "back", href: systemHref(name) }, `← Back to ${name}`),
+    el("h1", {}, `Edit “${name}”`),
+    latest && latest.version > definition.version
+      ? el("p", { class: "banner info" },
+        `These answers were given with version ${definition.version} of “${definition.title}”, so they are edited in that version. ` +
+        `To use the newest questions (version ${latest.version}), fill in the questionnaire again.`)
+      : null,
     el("div", { class: "fill-layout" }, el("div", { class: "fill-form" }, form), preview.node),
   ];
 }
@@ -246,7 +276,21 @@ async function pageSystem(name) {
   const legend = el("div", { class: "legend" },
     ROLES.map((r) => el("span", { style: `--swatch:${roleColor(r)}` }, r)),
     el("span", { class: "legend-seg" }, "network segment (subnet)"),
-    el("span", { class: "legend-note" }, "→ ← ↔ ENDPOINTS: a connection with all endpoints (out, in, both ways)"));
+    el("span", { class: "legend-idle" }, "grey: turned off, or open but not in use"),
+    el("span", { class: "legend-note" }, "the ENDPOINTS zone at the bottom: all workstations, the same for every site"));
+
+  const steps = model.skipping || [];
+  const player = steps.length ? skippingPlayer(model, canvas) : null;
+  const stepsTable = steps.length
+    ? el("table", { class: "connections" },
+        el("thead", {}, el("tr", {}, ["Step", "Action", "Server", "Note"].map((h) => el("th", {}, h)))),
+        el("tbody", {}, steps.map((st, i) =>
+          el("tr", {},
+            el("td", {}, String(i + 1)),
+            el("td", {}, st.action === "on" ? "Turn on" : "Turn off"),
+            el("td", {}, st.server),
+            el("td", {}, st.note || "—")))))
+    : null;
 
   return [
     back,
@@ -256,6 +300,8 @@ async function pageSystem(name) {
         el("button", { type: "button", class: "btn ghost small", onclick: () => download(`${file}.svg`, new Blob([svgFile], { type: "image/svg+xml" })) }, "SVG"),
         el("button", { type: "button", class: "btn ghost small", onclick: async () => download(`${file}.png`, await svgToPng(svgFile, width, height)) }, "PNG"),
         el("button", { type: "button", class: "btn ghost small", onclick: () => download(`${file}.json`, new Blob([JSON.stringify(model, null, 2)], { type: "application/json" })) }, "Data (JSON)"),
+        player ? player.button : null,
+        el("a", { class: "btn small", href: `#/edit/${encodeURIComponent(model.system)}` }, "Edit answers"),
         el("button", { type: "button", class: "btn danger small", onclick: (e) => deleteSystem(model.system, e.currentTarget) }, "Delete"))),
     legend,
     canvas,
@@ -265,7 +311,88 @@ async function pageSystem(name) {
     table,
     linksTable ? el("h2", { class: "section-title" }, "Connects to other systems") : null,
     linksTable,
+    stepsTable ? el("h2", { class: "section-title" }, "Skipping process") : null,
+    stepsTable,
   ];
+}
+
+// "Play skipping": first a pop-up with a short summary, then the diagram walks through the steps. The picture
+// never moves; each step only switches which servers are off and which segments and connections are grey
+// (see skippingFrames).
+const STEP_MS = 1300;
+function skippingPlayer(model, canvas) {
+  const frames = skippingFrames(model);
+  const button = el("button", { type: "button", class: "btn small skip-btn" }, "▶ Play skipping");
+  let timers = [];
+
+  const show = (frame, animate) => {
+    const svg = canvas.querySelector("svg");
+    if (!svg) return;
+    svg.querySelectorAll(".srv").forEach((g) => g.classList.toggle("off", frame.offServers.has(g.dataset.key)));
+    svg.querySelectorAll(".seg").forEach((g) => g.classList.toggle("idle", frame.idleSegments.has(g.dataset.seg)));
+    svg.querySelectorAll("[data-conn]").forEach((g) => g.classList.toggle("idle", frame.idleConnections.has(Number(g.dataset.conn))));
+    if (!animate) return;
+    // The server of the step pulses; communication that starts is drawn in along its line.
+    svg.querySelectorAll(".srv.pulse").forEach((g) => g.classList.remove("pulse"));
+    const srv = [...svg.querySelectorAll(".srv")].find((g) => g.dataset.key === frame.server);
+    if (srv) { void srv.getBBox(); srv.classList.add("pulse"); }
+    for (const i of frame.started) {
+      svg.querySelectorAll(`.conn[data-conn="${i}"] path`).forEach((path) => {
+        const len = path.getTotalLength();
+        path.style.transition = "none";
+        path.style.strokeDasharray = `${len}`;
+        path.style.strokeDashoffset = `${len}`;
+        void path.getBoundingClientRect();
+        path.style.transition = "stroke-dashoffset .8s ease-out, stroke .4s";
+        path.style.strokeDashoffset = "0";
+        timers.push(setTimeout(() => path.removeAttribute("style"), 900));
+      });
+    }
+  };
+  const stop = () => { timers.forEach(clearTimeout); timers = []; };
+
+  const play = () => {
+    button.disabled = true;
+    show(frames[0], false);
+    frames.slice(1).forEach((f, i) => timers.push(setTimeout(() => show(f, true), 300 + i * STEP_MS)));
+    timers.push(setTimeout(() => {
+      button.disabled = false;
+      button.dataset.state = "done";
+      button.textContent = "↺ Reset";
+    }, 300 + (frames.length - 1) * STEP_MS));
+  };
+
+  button.addEventListener("click", async () => {
+    stop();
+    if (button.dataset.state === "done") { // Reset: back to the start, as the answers describe it
+      show(frames[0], false);
+      button.dataset.state = "";
+      button.textContent = "▶ Play skipping";
+      return;
+    }
+    if (await confirmDialog({ title: `Skipping process – ${model.system}`, message: skippingSummary(model, frames), confirmLabel: "▶ Play" })) play();
+  });
+  return { button };
+}
+
+// The pop-up before the animation: the steps in one line each, then which communication moves.
+function skippingSummary(model, frames) {
+  const conns = model.connections || [];
+  const first = frames[0];
+  const last = frames.at(-1);
+  const line = (i) => `${conns[i].from} ${conns[i].both ? "↔" : "→"} ${conns[i].to}`;
+  const stops = [...last.idleConnections].filter((i) => !first.idleConnections.has(i)).map(line);
+  const starts = [...first.idleConnections].filter((i) => !last.idleConnections.has(i)).map(line);
+  const group = (title, items, cls) => items.length
+    ? el("div", { class: `skip-group ${cls}` }, el("strong", {}, title), el("ul", {}, items.map((t) => el("li", {}, t))))
+    : null;
+  return el("div", { class: "skip-summary" },
+    el("ol", {}, (model.skipping || []).map((st) =>
+      el("li", {}, el("span", { class: `skip-action ${st.action}` }, st.action === "on" ? "Turn on" : "Turn off"), " ", st.server,
+        st.note ? el("span", { class: "muted" }, ` – ${st.note}`) : null))),
+    group("Communication that stops", stops, "stops"),
+    group("Communication that starts", starts, "starts"),
+    stops.length || starts.length ? null : el("p", { class: "muted" }, "No communication changes."));
 }
 
 async function deleteSystem(name, button) {

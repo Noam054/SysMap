@@ -6,8 +6,9 @@ import { choiceOptions, fillLabel, isVisible, parseServerErrors, pruneHidden, va
 const SITE_LABEL = "{site|primary_site}";
 
 // onChange(answers), optional: called after every change with the answers as they would be sent.
-export function renderForm(definition, { onSubmit, onChange, submitLabel = "Save answers" }) {
-  const state = {}; // the answers being typed
+// initial, optional: answers to start from (to edit answers saved earlier).
+export function renderForm(definition, { onSubmit, onChange, submitLabel = "Save answers", initial = null }) {
+  const state = initial ? structuredClone(initial) : {}; // the answers being typed
   const watchers = []; // fields that can show/hide depending on other answers
   const dynamicChoices = []; // choice fields whose options come from other answers ("options_from")
   const liveTexts = []; // small texts that follow the answers: a row's name in its header, "in Ofek"

@@ -118,12 +118,21 @@ The diagram is drawn from a fixed set of question ids. Other questions are saved
 | `connections` | list of `from`, `to`, `direction`, `protocol`, `ports` | From version 4: one top-level list at the end for all sites, with `from` and `to` picking one or more segments (`multiple`); each pair of a `from` and a `to` is one arrow. Before: arrows between servers and/or segments (a port opening can be from or to a whole segment); `"All endpoints"` is a tag on the card instead. `direction` is read from the start of the option: `Incoming…` (the "To" side opens it), `Both…`, anything else is outgoing |
 | `other_sites` | list of `site` + the same `segments`, `servers` (and `connections` in version 3) | one block per other site (the "+ Add site" button) |
 | `dr_site` | choice, first option `"No DR site"` | the DR site, marked "DR" in the diagram |
+| `standby` | boolean, in each server row (version 5) | the server is turned off right now: drawn grey with an "OFF" tag |
+| `skipping` | list of `action`, `server`, `note` (version 5) | the skipping process: steps in order, each turning one server off or on (`action` starting with "Turn on…", else off); `server` is a server key like `core-1 (Sapir)`. "Play skipping" on the system's page animates them |
 
 From version 4, server and segment names are `distinct` within a site (another site may use the same names),
 a server is never named like a segment of its site (`not_in`), and a connection names its ends as
 `"name (site)"` (the label above), so a connection's end is never ambiguous. The model and the diagram call each
 server and segment by that same key. Version 3 answers name an end without its site: it is taken to be the one
 in the connection's own site (else the only one with that name).
+
+From version 5, **every connection is always open**: teams enter all of them, also those to servers that are
+turned off right now. The diagram greys out what is not in use instead of hiding it. A segment is not in use when
+it has servers and all of them are off. A connection is not in use when one of its ends is an off server or a
+segment that is not in use ("All endpoints" is always in use). Each skipping step changes which servers are off,
+so the diagram works out by itself which communication stops and which starts: for example, turning off
+`core-1 (Ofek)` and then turning on `core-1 (Sapir)` moves the communication from Ofek's Core to Sapir's.
 
 Older answers are still drawn. Version 2: `has_other_sites` + `other_servers` (each with a `site`), and
 `has_connections` + `connections` inside each server with a `to`. Version 1: a `site` inside each server,

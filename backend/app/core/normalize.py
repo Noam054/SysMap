@@ -100,6 +100,8 @@ def normalize(answers):
             "segment": _text(row.get("segment")),
             "key": node_key(_text(row.get("name")), site),
         })
+        if row.get("standby") is True:  # v5: turned off right now, used only after skipping
+            servers[-1]["off"] = True
         if row.get("has_connections"):  # v2: connections inside each server (hidden, so ignored, when "No")
             for c in _rows(row.get("connections")):
                 raw_connections.append((_names(row.get("name")), c, site))
@@ -123,6 +125,13 @@ def normalize(answers):
             if conn["from"] != conn["to"] and not any(_same(conn, other) for other in connections):
                 connections.append(conn)
 
+    skipping = []  # v5: the steps that move the system to another site, each turning one server off or on
+    for step in _rows(answers.get("skipping")):
+        key = end(_text(step.get("server")), "")
+        if key in {s["key"] for s in servers}:  # a server that no longer exists is dropped
+            action = "on" if _text(step.get("action")).lower().startswith("turn on") else "off"
+            skipping.append({"action": action, "server": key, "note": _text(step.get("note"))})
+
     links = [
         {"to": _text(row.get("system")), "protocol": row.get("protocol", "")}
         for row in _rows(answers.get("depends_on"))
@@ -139,4 +148,5 @@ def normalize(answers):
         "dr_site": dr_site,
         "links": links,
         "connections": connections,
+        "skipping": skipping,
     }

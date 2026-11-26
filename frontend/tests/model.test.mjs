@@ -67,7 +67,7 @@ test("connections of a server that answered No are ignored", () => {
 });
 
 test("half-filled answers still give a model to draw", () => {
-  assert.deepEqual(normalize({}), { system: "", servers: [], segments: [], sites: [], dr_site: "", links: [], connections: [] });
+  assert.deepEqual(normalize({}), { system: "", servers: [], segments: [], sites: [], dr_site: "", links: [], connections: [], skipping: [] });
   const m = normalize({
     servers: [
       { name: "", site: "Haifa" }, // no name yet: not drawn

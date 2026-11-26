@@ -13,7 +13,7 @@ export function confirmDialog({ title, message, confirmLabel = "OK", cancelLabel
     const confirm = el("button", { type: "button", class: danger ? "btn danger-solid" : "btn", onclick: () => finish(true) }, confirmLabel);
     const dialog = el("dialog", { class: "dialog", "aria-labelledby": "dialog-title" },
       el("h2", { id: "dialog-title" }, title),
-      el("p", {}, message),
+      message instanceof Node ? message : el("p", {}, message), // a text, or a ready-made block
       el("div", { class: "dialog-actions" }, cancel, confirm));
     dialog.addEventListener("cancel", (e) => { e.preventDefault(); finish(false); }); // Esc key
     dialog.addEventListener("click", (e) => { if (e.target === dialog) finish(false); }); // click outside the box

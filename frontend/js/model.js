@@ -80,6 +80,7 @@ export function normalize(answers) {
       name: text(row.name), site: site || NO_SITE, role: row.role || "other", os: row.os || "",
       segment: text(row.segment), key: nodeKey(text(row.name), site),
     });
+    if (row.standby === true) servers.at(-1).off = true; // v5: turned off right now, used only after skipping
     if (row.has_connections) rows(row.connections).forEach((c) => raw.push([names(row.name), c, site])); // v2
   }
 
@@ -102,6 +103,16 @@ export function normalize(answers) {
     }
   }
 
+  // v5: the steps that move the system to another site, each turning one server off or on.
+  const serverKeys = new Set(servers.map((s) => s.key));
+  const skipping = [];
+  for (const step of rows(answers.skipping)) {
+    const key = end(text(step.server), "");
+    if (!serverKeys.has(key)) continue; // a server that no longer exists is dropped
+    const action = text(step.action).toLowerCase().startsWith("turn on") ? "on" : "off";
+    skipping.push({ action, server: key, note: text(step.note) });
+  }
+
   const dr = drSite(answers);
   const sites = new Set([...servers.map((s) => s.site), ...segments.map((s) => s.site)]);
   for (const extra of [text(answers.primary_site), dr, ...siteBlocks(answers).map(([, s]) => s)]) if (extra) sites.add(extra);
@@ -118,5 +129,6 @@ export function normalize(answers) {
     dr_site: dr,
     links,
     connections: result,
+    skipping,
   };
 }
