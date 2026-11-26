@@ -36,6 +36,8 @@ status from the monitoring systems.
   file: copy it to the next version (`name.v2.json`).
 - The server's validation is the authority; the browser repeats it only for instant feedback. Keep
   `backend/app/core/validation.py` and `frontend/js/form-logic.js` in step.
+- The same goes for the model: `frontend/js/model.js` copies `backend/app/core/normalize.py` for the
+  live diagram beside the form. Keep the two in step (`frontend/tests/model.test.mjs` mirrors the Python tests).
 - The diagram only understands the question ids listed in `docs/questionnaire-format.md`.
 
 ## Status

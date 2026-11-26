@@ -30,13 +30,18 @@ async function request(path, options = {}) {
 
 export const api = {
   questionnaires: () => request("api/questionnaires"),
-  questionnaire: (id) => request(`api/questionnaires/${encodeURIComponent(id)}`),
-  submit: (questionnaireId, answers) =>
+  // version: a given version (to edit answers given in it); the latest when left out.
+  questionnaire: (id, version) =>
+    request(`api/questionnaires/${encodeURIComponent(id)}${version ? `?version=${encodeURIComponent(version)}` : ""}`),
+  // edit, optional: { version, replaces } when saving edited answers (see POST /api/submissions).
+  submit: (questionnaireId, answers, edit = {}) =>
     request("api/submissions", {
       method: "POST",
-      body: JSON.stringify({ questionnaire_id: questionnaireId, answers }),
+      body: JSON.stringify({ questionnaire_id: questionnaireId, answers, ...edit }),
     }),
+  systemAnswers: (name) => request(`api/systems/answers?name=${encodeURIComponent(name)}`),
   submissions: () => request("api/submissions"),
   submission: (id) => request(`api/submissions/${encodeURIComponent(id)}`),
   model: () => request("api/model"),
+  deleteSystem: (name) => request(`api/systems?name=${encodeURIComponent(name)}`, { method: "DELETE" }),
 };

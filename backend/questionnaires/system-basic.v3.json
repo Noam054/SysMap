@@ -1,0 +1,327 @@
+{
+  "id": "system-basic",
+  "version": 3,
+  "title": "Basic system information",
+  "questions": [
+    {
+      "id": "system_name",
+      "type": "text",
+      "label": "What is the name of your system?",
+      "required": true
+    },
+    {
+      "id": "primary_site",
+      "type": "choice",
+      "label": "Which is your system's primary site?",
+      "required": true,
+      "options": [
+        "Ofek",
+        "Sapir",
+        "Mazpen"
+      ]
+    },
+    {
+      "id": "segments",
+      "type": "list",
+      "label": "Network segments in your primary site",
+      "row_label": "Segment",
+      "help": "Add each network segment (subnet) of your system. Servers are placed in these segments.",
+      "item": [
+        {
+          "id": "name",
+          "type": "text",
+          "label": "Segment name",
+          "required": true,
+          "unique": "node-name",
+          "placeholder": "e.g. DMZ",
+          "help": "Segment and server names must all be different."
+        },
+        {
+          "id": "subnet",
+          "type": "text",
+          "label": "Subnet",
+          "required": true,
+          "format": "cidr",
+          "placeholder": "e.g. 14.151.0.0/24"
+        }
+      ]
+    },
+    {
+      "id": "servers",
+      "type": "list",
+      "label": "Servers in your primary site",
+      "row_label": "Server",
+      "item": [
+        {
+          "id": "name",
+          "type": "text",
+          "label": "Server name",
+          "required": true,
+          "unique": "node-name",
+          "help": "Each server name must be different, in all sites."
+        },
+        {
+          "id": "role",
+          "type": "choice",
+          "label": "Role",
+          "options": [
+            "web",
+            "app",
+            "database",
+            "storage",
+            "other"
+          ]
+        },
+        {
+          "id": "os",
+          "type": "choice",
+          "label": "Operating system",
+          "options": [
+            "Windows",
+            "Linux"
+          ]
+        },
+        {
+          "id": "segment",
+          "type": "choice",
+          "label": "Network segment",
+          "options_from": "segments.name",
+          "help": "One of the segments above (add a segment first to choose one)."
+        }
+      ]
+    },
+    {
+      "id": "connections",
+      "type": "list",
+      "label": "Connections (port openings) of your primary site",
+      "row_label": "Connection",
+      "start_empty": true,
+      "help": "From a server or segment in this site, to a server or segment in any site, or to all endpoints.",
+      "item": [
+        {
+          "id": "from",
+          "type": "choice",
+          "label": "From",
+          "required": true,
+          "options_from": [
+            "servers.name",
+            "segments.name"
+          ]
+        },
+        {
+          "id": "to",
+          "type": "choice",
+          "label": "To",
+          "required": true,
+          "differs_from": "from",
+          "options_from": [
+            "/servers.name",
+            "/segments.name",
+            "/other_sites.servers.name",
+            "/other_sites.segments.name"
+          ],
+          "options": [
+            "All endpoints"
+          ]
+        },
+        {
+          "id": "direction",
+          "type": "choice",
+          "label": "Who opens the connection?",
+          "required": true,
+          "options": [
+            "Outgoing (\"From\" opens it)",
+            "Incoming (\"To\" opens it)",
+            "Both directions"
+          ]
+        },
+        {
+          "id": "protocol",
+          "type": "text",
+          "label": "Protocol",
+          "required": true,
+          "placeholder": "e.g. HTTPS"
+        },
+        {
+          "id": "ports",
+          "type": "text",
+          "label": "Port numbers",
+          "required": true,
+          "placeholder": "e.g. 443, 8443",
+          "help": "Separate several ports with commas."
+        }
+      ]
+    },
+    {
+      "id": "other_sites",
+      "type": "list",
+      "label": "Other sites",
+      "row_label": "Site",
+      "start_empty": true,
+      "help": "Does your system have servers in another site? Press “Add site” for each one.",
+      "item": [
+        {
+          "id": "site",
+          "type": "choice",
+          "label": "Which site?",
+          "required": true,
+          "options": [
+            "Ofek",
+            "Sapir",
+            "Mazpen"
+          ],
+          "exclude": [
+            "/primary_site",
+            "/other_sites.site"
+          ]
+        },
+        {
+          "id": "segments",
+          "type": "list",
+          "label": "Network segments in this site",
+          "row_label": "Segment",
+          "help": "Add each network segment (subnet) of your system. Servers are placed in these segments.",
+          "item": [
+            {
+              "id": "name",
+              "type": "text",
+              "label": "Segment name",
+              "required": true,
+              "unique": "node-name",
+              "placeholder": "e.g. DMZ",
+              "help": "Segment and server names must all be different."
+            },
+            {
+              "id": "subnet",
+              "type": "text",
+              "label": "Subnet",
+              "required": true,
+              "format": "cidr",
+              "placeholder": "e.g. 14.151.0.0/24"
+            }
+          ]
+        },
+        {
+          "id": "servers",
+          "type": "list",
+          "label": "Servers in this site",
+          "row_label": "Server",
+          "item": [
+            {
+              "id": "name",
+              "type": "text",
+              "label": "Server name",
+              "required": true,
+              "unique": "node-name",
+              "help": "Each server name must be different, in all sites."
+            },
+            {
+              "id": "role",
+              "type": "choice",
+              "label": "Role",
+              "options": [
+                "web",
+                "app",
+                "database",
+                "storage",
+                "other"
+              ]
+            },
+            {
+              "id": "os",
+              "type": "choice",
+              "label": "Operating system",
+              "options": [
+                "Windows",
+                "Linux"
+              ]
+            },
+            {
+              "id": "segment",
+              "type": "choice",
+              "label": "Network segment",
+              "options_from": "segments.name",
+              "help": "One of the segments above (add a segment first to choose one)."
+            }
+          ]
+        },
+        {
+          "id": "connections",
+          "type": "list",
+          "label": "Connections (port openings) of this site",
+          "row_label": "Connection",
+          "start_empty": true,
+          "help": "From a server or segment in this site, to a server or segment in any site, or to all endpoints.",
+          "item": [
+            {
+              "id": "from",
+              "type": "choice",
+              "label": "From",
+              "required": true,
+              "options_from": [
+                "servers.name",
+                "segments.name"
+              ]
+            },
+            {
+              "id": "to",
+              "type": "choice",
+              "label": "To",
+              "required": true,
+              "differs_from": "from",
+              "options_from": [
+                "/servers.name",
+                "/segments.name",
+                "/other_sites.servers.name",
+                "/other_sites.segments.name"
+              ],
+              "options": [
+                "All endpoints"
+              ]
+            },
+            {
+              "id": "direction",
+              "type": "choice",
+              "label": "Who opens the connection?",
+              "required": true,
+              "options": [
+                "Outgoing (\"From\" opens it)",
+                "Incoming (\"To\" opens it)",
+                "Both directions"
+              ]
+            },
+            {
+              "id": "protocol",
+              "type": "text",
+              "label": "Protocol",
+              "required": true,
+              "placeholder": "e.g. HTTPS"
+            },
+            {
+              "id": "ports",
+              "type": "text",
+              "label": "Port numbers",
+              "required": true,
+              "placeholder": "e.g. 443, 8443",
+              "help": "Separate several ports with commas."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dr_site",
+      "type": "choice",
+      "label": "Which site is your DR (disaster recovery) site?",
+      "options": [
+        "No DR site",
+        "Ofek",
+        "Sapir",
+        "Mazpen"
+      ],
+      "exclude": [
+        "/primary_site"
+      ]
+    }
+  ]
+}

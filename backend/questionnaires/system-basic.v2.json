@@ -1,0 +1,243 @@
+{
+  "id": "system-basic",
+  "version": 2,
+  "title": "Basic system information",
+  "questions": [
+    {
+      "id": "primary_site",
+      "type": "choice",
+      "label": "Which is your system's primary site?",
+      "required": true,
+      "options": [
+        "Ofek",
+        "Sapir",
+        "Mazpen"
+      ]
+    },
+    {
+      "id": "system_name",
+      "type": "text",
+      "label": "What is the name of your system?",
+      "required": true
+    },
+    {
+      "id": "servers",
+      "type": "list",
+      "label": "Describe each server in your primary site",
+      "row_label": "Server",
+      "item": [
+        {
+          "id": "name",
+          "type": "text",
+          "label": "Server name",
+          "required": true,
+          "unique": "server-name",
+          "help": "Each server name must be different, in all sites."
+        },
+        {
+          "id": "role",
+          "type": "choice",
+          "label": "Role",
+          "options": [
+            "web",
+            "app",
+            "database",
+            "storage",
+            "other"
+          ]
+        },
+        {
+          "id": "os",
+          "type": "choice",
+          "label": "Operating system",
+          "options": [
+            "Windows",
+            "Linux"
+          ]
+        },
+        {
+          "id": "has_connections",
+          "type": "boolean",
+          "label": "Does this server connect to other servers or endpoints?"
+        },
+        {
+          "id": "connections",
+          "type": "list",
+          "label": "Describe each connection",
+          "row_label": "Connection",
+          "help": "Choose another server from this form (any site), or \"All endpoints\" (for example agents).",
+          "show_if": {
+            "question": "has_connections",
+            "equals": true
+          },
+          "item": [
+            {
+              "id": "to",
+              "type": "choice",
+              "label": "Connected to",
+              "required": true,
+              "options_from": [
+                "servers.name",
+                "other_servers.name"
+              ],
+              "options": [
+                "All endpoints"
+              ]
+            },
+            {
+              "id": "direction",
+              "type": "choice",
+              "label": "Direction",
+              "required": true,
+              "options": [
+                "Outgoing (this server opens it)",
+                "Incoming (the other side opens it)",
+                "Both directions"
+              ]
+            },
+            {
+              "id": "protocol",
+              "type": "text",
+              "label": "Protocol",
+              "required": true,
+              "placeholder": "e.g. HTTPS"
+            },
+            {
+              "id": "ports",
+              "type": "text",
+              "label": "Port numbers",
+              "required": true,
+              "placeholder": "e.g. 443, 8443",
+              "help": "Separate several ports with commas."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "has_other_sites",
+      "type": "boolean",
+      "label": "Do you have servers in other sites?"
+    },
+    {
+      "id": "other_servers",
+      "type": "list",
+      "label": "Describe each server in another site",
+      "row_label": "Server",
+      "show_if": {
+        "question": "has_other_sites",
+        "equals": true
+      },
+      "item": [
+        {
+          "id": "site",
+          "type": "choice",
+          "label": "In which site is it placed?",
+          "required": true,
+          "options": [
+            "Ofek",
+            "Sapir",
+            "Mazpen"
+          ]
+        },
+        {
+          "id": "name",
+          "type": "text",
+          "label": "Server name",
+          "required": true,
+          "unique": "server-name",
+          "help": "Each server name must be different, in all sites."
+        },
+        {
+          "id": "role",
+          "type": "choice",
+          "label": "Role",
+          "options": [
+            "web",
+            "app",
+            "database",
+            "storage",
+            "other"
+          ]
+        },
+        {
+          "id": "os",
+          "type": "choice",
+          "label": "Operating system",
+          "options": [
+            "Windows",
+            "Linux"
+          ]
+        },
+        {
+          "id": "has_connections",
+          "type": "boolean",
+          "label": "Does this server connect to other servers or endpoints?"
+        },
+        {
+          "id": "connections",
+          "type": "list",
+          "label": "Describe each connection",
+          "row_label": "Connection",
+          "help": "Choose another server from this form (any site), or \"All endpoints\" (for example agents).",
+          "show_if": {
+            "question": "has_connections",
+            "equals": true
+          },
+          "item": [
+            {
+              "id": "to",
+              "type": "choice",
+              "label": "Connected to",
+              "required": true,
+              "options_from": [
+                "servers.name",
+                "other_servers.name"
+              ],
+              "options": [
+                "All endpoints"
+              ]
+            },
+            {
+              "id": "direction",
+              "type": "choice",
+              "label": "Direction",
+              "required": true,
+              "options": [
+                "Outgoing (this server opens it)",
+                "Incoming (the other side opens it)",
+                "Both directions"
+              ]
+            },
+            {
+              "id": "protocol",
+              "type": "text",
+              "label": "Protocol",
+              "required": true,
+              "placeholder": "e.g. HTTPS"
+            },
+            {
+              "id": "ports",
+              "type": "text",
+              "label": "Port numbers",
+              "required": true,
+              "placeholder": "e.g. 443, 8443",
+              "help": "Separate several ports with commas."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dr_site",
+      "type": "choice",
+      "label": "Which site is your DR (disaster recovery) site?",
+      "options": [
+        "No DR site",
+        "Ofek",
+        "Sapir",
+        "Mazpen"
+      ]
+    }
+  ]
+}
